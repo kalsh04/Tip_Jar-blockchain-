@@ -65,6 +65,21 @@ connectBtn.addEventListener('click', async () => {
         loginStatus.textContent = '';
         connectBtn.disabled = true;
 
+        // Force MetaMask to show the account-approval popup every time,
+        // even if this site was already connected before. Without this,
+        // MetaMask silently reuses a past permission grant and "Disconnect"
+        // in our UI won't actually feel like a disconnect.
+        try {
+            await window.ethereum.request({
+                method: 'wallet_requestPermissions',
+                params: [{ eth_accounts: {} }]
+            });
+        } catch (permError) {
+            // Some wallets don't support this method — fall back quietly,
+            // eth_requestAccounts below will still work.
+            console.warn('wallet_requestPermissions failed/unsupported:', permError);
+        }
+
         await window.ethereum.request({
             method: 'eth_requestAccounts'
         });
@@ -187,7 +202,7 @@ async function loadAllTips() {
                     ethers.utils.formatEther(tip.amount)
                 ).toFixed(4)} ETH</div>
                 <div class="tip-body">
-                    <p class="tip-message">“${tip.message}”</p>
+                    <p class="tip-message">"${tip.message}"</p>
                     <p class="tip-from">${shortenAddress(tip.tipper)}</p>
                 </div>
                 <div class="tip-time">${new Date(
@@ -283,9 +298,22 @@ copyBtn.addEventListener('click', () => {
 });
 
 // ─── DISCONNECT ───────────────────────────────────────────
-disconnectBtn.addEventListener('click', () => {
+disconnectBtn.addEventListener('click', async () => {
 
     if (contract) contract.removeAllListeners();
+
+    // Try to revoke the permission grant too (supported on newer MetaMask).
+    // If it's not supported, wallet_requestPermissions on next Connect
+    // still forces a fresh approval popup, so this is a nice-to-have.
+    try {
+        await window.ethereum?.request({
+            method: 'wallet_revokePermissions',
+            params: [{ eth_accounts: {} }]
+        });
+    } catch (revokeError) {
+        // Not supported by this wallet — that's fine.
+        console.warn('wallet_revokePermissions failed/unsupported:', revokeError);
+    }
 
     provider = null;
     signer = null;
