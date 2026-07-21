@@ -153,29 +153,16 @@ async function connectWallet(role) {
     currentRole = role;
 
     if (role === 'waiter') {
-      try {
-        const waiter = await contract.getWaiter(currentAddress);
-        if (!waiter.exists) {
-          throw new Error('This wallet is not registered as a waiter.');
-        }
-      } catch (waiterError) {
-        if (role === 'waiter') {
-          console.warn('getWaiter failed, continuing with fallback waiter flow:', waiterError);
-        }
+      const waiter = await contract.getWaiter(currentAddress);
+      if (!waiter.exists) {
+        throw new Error('This wallet is not registered as a waiter.');
       }
     }
 
     if (role === 'manager') {
-      try {
-        const owner = await contract.getOwner();
-        if (currentAddress.toLowerCase() !== owner.toLowerCase()) {
-          throw new Error('This wallet is not the contract owner.');
-        }
-      } catch (ownerError) {
-        const fallbackOwner = await provider.getSigner().getAddress();
-        if (fallbackOwner.toLowerCase() !== currentAddress.toLowerCase()) {
-          throw new Error('Manager access is unavailable for this contract ABI.');
-        }
+      const owner = await contract.getOwner();
+      if (currentAddress.toLowerCase() !== owner.toLowerCase()) {
+        throw new Error('This wallet is not the contract owner.');
       }
     }
 
