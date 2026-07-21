@@ -17,7 +17,8 @@ const CONTRACT_ABI = [
 ];
 
 // ─── GET HTML ELEMENTS ────────────────────────────────────
-const connectBtn = document.getElementById('connectBtn');
+const connectCustomerBtn = document.getElementById('connectCustomerBtn');
+const connectWaiterBtn = document.getElementById('connectWaiterBtn');
 const disconnectBtn = document.getElementById('disconnectBtn');
 const sendTipBtn = document.getElementById('sendTipBtn');
 const withdrawBtn = document.getElementById('withdrawBtn');
@@ -54,7 +55,10 @@ function shortenAddress(addr) {
 }
 
 // ─── CONNECT WALLET ───────────────────────────────────────
-connectBtn.addEventListener('click', async () => {
+connectCustomerBtn.addEventListener('click', () => connectWallet('customer'));
+connectWaiterBtn.addEventListener('click', () => connectWallet('waiter'));
+
+async function connectWallet(role) {
 
     if (typeof window.ethereum === 'undefined') {
         loginStatus.textContent = '❌ MetaMask not found. Please install it first.';
@@ -63,7 +67,8 @@ connectBtn.addEventListener('click', async () => {
 
     try {
         loginStatus.textContent = '';
-        connectBtn.disabled = true;
+        connectCustomerBtn.disabled = true;
+        connectWaiterBtn.disabled = true;
 
         // Force MetaMask to show the account-approval popup every time,
         // even if this site was already connected before. Without this,
@@ -96,10 +101,32 @@ connectBtn.addEventListener('click', async () => {
 
         currentAddress = await signer.getAddress();
 
+        // If someone picked "I'm the waiter", verify on-chain that this
+        // wallet is actually the contract owner. The contract itself would
+        // reject a withdraw() from a non-owner anyway — this just avoids
+        // showing a dashboard that would only fail once used.
+        if (role === 'waiter') {
+            const ownerAddress = await contract.owner();
+            if (currentAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
+                loginStatus.textContent =
+                '❌ This wallet isn\'t registered as the jar owner. ' +
+                'Connect with the owner wallet, or go back and continue as a customer.';
+                provider = null;
+                signer = null;
+                contract = null;
+                currentAddress = null;
+                return;
+            }
+        }
+
         await detectNetwork();
         await loadWalletInfo();
         await loadContractInfo();
         await loadAllTips();
+
+        // Apply the right dashboard layout for this role
+        appScreen.classList.remove('role-customer', 'role-waiter');
+        appScreen.classList.add(role === 'waiter' ? 'role-waiter' : 'role-customer');
 
         // Swap screens
         loginScreen.classList.add('hidden');
@@ -114,9 +141,10 @@ connectBtn.addEventListener('click', async () => {
     } catch (error) {
         loginStatus.textContent = '❌ Connection failed: ' + error.message;
     } finally {
-        connectBtn.disabled = false;
+        connectCustomerBtn.disabled = false;
+        connectWaiterBtn.disabled = false;
     }
-});
+}
 
 // ─── DETECT NETWORK ───────────────────────────────────────
 async function detectNetwork() {
@@ -168,15 +196,6 @@ async function loadContractInfo() {
     });
     totalEthTipped.textContent =
     parseFloat(ethers.utils.formatEther(totalEth)).toFixed(4);
-
-    // Check if current user is owner
-    const ownerAddress = await contract.owner();
-    if (currentAddress.toLowerCase() ===
-        ownerAddress.toLowerCase()) {
-        ownerCard.classList.remove('hidden');
-    } else {
-        ownerCard.classList.add('hidden');
-    }
 }
 
 // ─── LOAD ALL TIPS ────────────────────────────────────────
@@ -202,7 +221,7 @@ async function loadAllTips() {
                     ethers.utils.formatEther(tip.amount)
                 ).toFixed(4)} ETH</div>
                 <div class="tip-body">
-                    <p class="tip-message">"${tip.message}"</p>
+                    <p class="tip-message">“${tip.message}”</p>
                     <p class="tip-from">${shortenAddress(tip.tipper)}</p>
                 </div>
                 <div class="tip-time">${new Date(
@@ -332,7 +351,7 @@ disconnectBtn.addEventListener('click', async () => {
     tipStatus.textContent = '';
     withdrawStatus.textContent = '';
     loginStatus.textContent = '';
-    ownerCard.classList.add('hidden');
+    appScreen.classList.remove('role-customer', 'role-waiter');
 
     appScreen.classList.add('hidden');
     loginScreen.classList.remove('hidden');

@@ -159,7 +159,31 @@ input::placeholder { color: var(--ink-faint); }
   margin-bottom: 32px;
 }
 
-.btn-connect { width: 100%; max-width: 300px; }
+.role-choice {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.btn-role {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 16px 18px;
+  justify-content: flex-start;
+  text-align: left;
+}
+.btn-role:hover { border-color: var(--gold); background: var(--surface-2); }
+.btn-role svg { flex-shrink: 0; color: var(--gold-soft); }
+.btn-role span { display: flex; flex-direction: column; gap: 2px; }
+.btn-role strong { font-weight: 600; font-size: 0.95rem; }
+.btn-role em {
+  font-style: normal;
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+}
 
 .login-status {
   margin-top: 14px;
@@ -458,6 +482,22 @@ input::placeholder { color: var(--ink-faint); }
   color: var(--ink-faint);
   font-family: var(--serif);
   font-size: 1.05rem;
+}
+
+/* ─── ROLE-BASED DASHBOARDS ──────────────────────────── */
+#appScreen.role-customer .side-col { display: none; }
+#appScreen.role-customer .card-send { grid-column: 1 / -1; }
+
+#appScreen.role-waiter .card-send { display: none; }
+#appScreen.role-waiter .side-col {
+  grid-column: 1 / -1;
+  flex-direction: row;
+}
+#appScreen.role-waiter .stat-strip { flex: 1; }
+#appScreen.role-waiter .card-owner { flex: 1; }
+
+@media (max-width: 860px) {
+  #appScreen.role-waiter .side-col { flex-direction: column; }
 }
 
 /* ─── RESPONSIVE ─────────────────────────────────────── */
