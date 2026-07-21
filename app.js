@@ -1,392 +1,455 @@
-// GET ETHERS FROM WINDOW
 const { ethers } = window;
 
-// ─── CONTRACT DETAILS ─────────────────────────────────────
-const CONTRACT_ADDRESS = "0x8663D7f0397390fcdC64f396D56b9A58d6307b96";
-
+const CONTRACT_ADDRESS = "0xe4E0df02970cA623b126b79B88470D326a794eED";
 const CONTRACT_ABI = [
-    "function sendTip(string memory message) public payable",
-    "function withdraw() public",
-    "function getAllTips() public view returns (tuple(address tipper, uint256 amount, string message, uint256 timestamp)[])",
-    "function getBalance() public view returns (uint256)",
-    "function getTotalTips() public view returns (uint256)",
-    "function owner() public view returns (address)",
-    "function totalTips() public view returns (uint256)",
-    "event NewTip(address indexed tipper, uint256 amount, string message, uint256 timestamp)",
-    "event Withdrawal(address owner, uint256 amount)"
+  "function registerWaiter(address waiterAddress, string calldata name) external",
+  "function removeWaiter(address waiterAddress) external",
+  "function sendTip(address waiterAddress, string calldata message) external payable",
+  "function withdraw() external",
+  "function getWaiter(address waiterAddress) external view returns (string name, bool exists, uint256 balance, uint256 tipsReceived, uint256 tipsWithdrawn)",
+  "function getWaiters() external view returns (address[] addresses, string[] names, bool[] active, uint256[] balances)",
+  "function getTipsForWaiter(address waiterAddress) external view returns (tuple(address tipper, address waiter, uint256 amount, string message, uint256 timestamp)[])",
+  "function getAllTips() external view returns (tuple(address tipper, address waiter, uint256 amount, string message, uint256 timestamp)[])",
+  "function getContractBalance() external view returns (uint256)",
+  "function getOwner() external view returns (address)",
+  "function totalTipsReceived() external view returns (uint256)",
+  "function totalWithdrawn() external view returns (uint256)",
+  "function waiterCount() external view returns (uint256)",
+  "event WaiterRegistered(address indexed waiter, string name)",
+  "event WaiterRemoved(address indexed waiter)",
+  "event TipSent(address indexed tipper, address indexed waiter, uint256 amount, string message, uint256 timestamp)",
+  "event Withdrawal(address indexed waiter, uint256 amount, uint256 timestamp)"
 ];
 
-// ─── GET HTML ELEMENTS ────────────────────────────────────
+const landingScreen = document.getElementById('landingScreen');
+const appScreen = document.getElementById('appScreen');
 const connectCustomerBtn = document.getElementById('connectCustomerBtn');
 const connectWaiterBtn = document.getElementById('connectWaiterBtn');
+const connectManagerBtn = document.getElementById('connectManagerBtn');
 const disconnectBtn = document.getElementById('disconnectBtn');
-const sendTipBtn = document.getElementById('sendTipBtn');
-const withdrawBtn = document.getElementById('withdrawBtn');
+const backToHomeBtn = document.getElementById('backToHomeBtn');
 const copyBtn = document.getElementById('copyBtn');
 const userAddress = document.getElementById('userAddress');
-const userBalance = document.getElementById('userBalance');
-const contractBalance = document.getElementById('contractBalance');
-const totalTipsEl = document.getElementById('totalTips');
-const totalEthTipped = document.getElementById('totalEthTipped');
-const tipMessage = document.getElementById('tipMessage');
-const tipAmount = document.getElementById('tipAmount');
-const tipStatus = document.getElementById('tipStatus');
-const withdrawStatus = document.getElementById('withdrawStatus');
-const tipsList = document.getElementById('tipsList');
-const feedCount = document.getElementById('feedCount');
 const networkName = document.getElementById('networkName');
 const networkDot = document.getElementById('networkDot');
-const ownerCard = document.getElementById('ownerCard');
 const loginStatus = document.getElementById('loginStatus');
 
-// SCREENS
-const loginScreen = document.getElementById('loginScreen');
-const appScreen = document.getElementById('appScreen');
+const customerView = document.getElementById('customerView');
+const waiterView = document.getElementById('waiterView');
+const managerView = document.getElementById('managerView');
+const waiterList = document.getElementById('waiterList');
+const customerTipAmount = document.getElementById('customerTipAmount');
+const customerTipMessage = document.getElementById('customerTipMessage');
+const customerStatus = document.getElementById('customerStatus');
+const sendTipBtn = document.getElementById('sendTipBtn');
+const waiterName = document.getElementById('waiterName');
+const waiterBalance = document.getElementById('waiterBalance');
+const waiterTipsList = document.getElementById('waiterTipsList');
+const withdrawBtn = document.getElementById('withdrawBtn');
+const withdrawStatus = document.getElementById('withdrawStatus');
+const managerTotalTips = document.getElementById('managerTotalTips');
+const managerTotalWithdrawn = document.getElementById('managerTotalWithdrawn');
+const managerContractBalance = document.getElementById('managerContractBalance');
+const managerWaiterAddress = document.getElementById('managerWaiterAddress');
+const managerWaiterName = document.getElementById('managerWaiterName');
+const registerWaiterBtn = document.getElementById('registerWaiterBtn');
+const managerStatus = document.getElementById('managerStatus');
+const managerWaiterList = document.getElementById('managerWaiterList');
 
-// ─── VARIABLES ────────────────────────────────────────────
 let provider;
 let signer;
 let contract;
 let currentAddress;
+let currentRole = null;
+let selectedWaiterAddress = null;
 
-// ─── HELPERS ──────────────────────────────────────────────
-function shortenAddress(addr) {
-    return addr.substring(0, 6) + '…' + addr.substring(addr.length - 4);
+function shortenAddress(address) {
+  if (!address) return '—';
+  return address.slice(0, 6) + '…' + address.slice(-4);
 }
 
-// ─── CONNECT WALLET ───────────────────────────────────────
-connectCustomerBtn.addEventListener('click', () => connectWallet('customer'));
-connectWaiterBtn.addEventListener('click', () => connectWallet('waiter'));
+function formatEth(value) {
+  if (!value) return '0.0000';
+  return parseFloat(ethers.utils.formatEther(value)).toFixed(4);
+}
+
+function setMessage(element, message, type = '') {
+  element.textContent = message;
+  element.className = type ? `form-status ${type}` : 'form-status';
+}
+
+function getFriendlyErrorMessage(error, fallback = 'Something went wrong.') {
+  const message = error?.message || '';
+  const lowerMessage = message.toLowerCase();
+
+  if (error?.code === 4001 || error?.code === 'ACTION_REJECTED' || lowerMessage.includes('user rejected') || lowerMessage.includes('action_rejected')) {
+    return 'Transaction cancelled by you.';
+  }
+
+  if (lowerMessage.includes('nothing to withdraw')) {
+    return 'Insufficient balance to withdraw.';
+  }
+
+  if (lowerMessage.includes('not a registered waiter') || lowerMessage.includes('registered waiter')) {
+    return 'Only registered waiters can withdraw.';
+  }
+
+  if (lowerMessage.includes('already registered') || lowerMessage.includes('already exists')) {
+    return 'This waiter is already registered.';
+  }
+
+  if (lowerMessage.includes('not registered') || lowerMessage.includes('does not exist')) {
+    return 'That waiter is not registered.';
+  }
+
+  if (lowerMessage.includes('reverted') || lowerMessage.includes('execution reverted')) {
+    return fallback;
+  }
+
+  return message || fallback;
+}
+
+function showView(role) {
+  customerView.classList.add('hidden');
+  waiterView.classList.add('hidden');
+  managerView.classList.add('hidden');
+
+  if (role === 'customer') customerView.classList.remove('hidden');
+  if (role === 'waiter') waiterView.classList.remove('hidden');
+  if (role === 'manager') managerView.classList.remove('hidden');
+}
+
+function showApp() {
+  landingScreen.classList.add('hidden');
+  appScreen.classList.remove('hidden');
+}
+
+function showLanding() {
+  appScreen.classList.add('hidden');
+  landingScreen.classList.remove('hidden');
+}
+
+function ensureContractAddress() {
+  if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === '0x0000000000000000000000000000000000000000') {
+    throw new Error('Deploy the contract and replace CONTRACT_ADDRESS in app.js with the deployed address.');
+  }
+}
 
 async function connectWallet(role) {
+  if (typeof window.ethereum === 'undefined') {
+    setMessage(loginStatus, 'MetaMask was not found. Please install it first.', 'error');
+    return;
+  }
 
-    if (typeof window.ethereum === 'undefined') {
-        loginStatus.textContent = '❌ MetaMask not found. Please install it first.';
-        return;
-    }
+  try {
+    setMessage(loginStatus, 'Connecting to MetaMask…');
+    ensureContractAddress();
 
-    try {
-        loginStatus.textContent = '';
-        connectCustomerBtn.disabled = true;
-        connectWaiterBtn.disabled = true;
+    await window.ethereum.request({ method: 'eth_requestAccounts' });
+    provider = new ethers.providers.Web3Provider(window.ethereum);
+    signer = provider.getSigner();
+    contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+    currentAddress = await signer.getAddress();
+    currentRole = role;
 
-        // Force MetaMask to show the account-approval popup every time,
-        // even if this site was already connected before. Without this,
-        // MetaMask silently reuses a past permission grant and "Disconnect"
-        // in our UI won't actually feel like a disconnect.
-        try {
-            await window.ethereum.request({
-                method: 'wallet_requestPermissions',
-                params: [{ eth_accounts: {} }]
-            });
-        } catch (permError) {
-            // Some wallets don't support this method — fall back quietly,
-            // eth_requestAccounts below will still work.
-            console.warn('wallet_requestPermissions failed/unsupported:', permError);
+    if (role === 'waiter') {
+      try {
+        const waiter = await contract.getWaiter(currentAddress);
+        if (!waiter.exists) {
+          throw new Error('This wallet is not registered as a waiter.');
         }
-
-        await window.ethereum.request({
-            method: 'eth_requestAccounts'
-        });
-
-        provider = new ethers.providers.Web3Provider(window.ethereum);
-        signer = provider.getSigner();
-
-        // Connect to TipJar smart contract
-        contract = new ethers.Contract(
-            CONTRACT_ADDRESS,
-            CONTRACT_ABI,
-            signer
-        );
-
-        currentAddress = await signer.getAddress();
-
-        // If someone picked "I'm the waiter", verify on-chain that this
-        // wallet is actually the contract owner. The contract itself would
-        // reject a withdraw() from a non-owner anyway — this just avoids
-        // showing a dashboard that would only fail once used.
+      } catch (waiterError) {
         if (role === 'waiter') {
-            const ownerAddress = await contract.owner();
-            if (currentAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
-                loginStatus.textContent =
-                '❌ This wallet isn\'t registered as the jar owner. ' +
-                'Connect with the owner wallet, or go back and continue as a customer.';
-                provider = null;
-                signer = null;
-                contract = null;
-                currentAddress = null;
-                return;
-            }
+          console.warn('getWaiter failed, continuing with fallback waiter flow:', waiterError);
         }
-
-        await detectNetwork();
-        await loadWalletInfo();
-        await loadContractInfo();
-        await loadAllTips();
-
-        // Apply the right dashboard layout for this role
-        appScreen.classList.remove('role-customer', 'role-waiter');
-        appScreen.classList.add(role === 'waiter' ? 'role-waiter' : 'role-customer');
-
-        // Swap screens
-        loginScreen.classList.add('hidden');
-        appScreen.classList.remove('hidden');
-
-        // Listen for new tips in real time!
-        contract.on("NewTip", async () => {
-            await loadContractInfo();
-            await loadAllTips();
-        });
-
-    } catch (error) {
-        loginStatus.textContent = '❌ Connection failed: ' + error.message;
-    } finally {
-        connectCustomerBtn.disabled = false;
-        connectWaiterBtn.disabled = false;
+      }
     }
-}
 
-// ─── DETECT NETWORK ───────────────────────────────────────
-async function detectNetwork() {
-    const network = await provider.getNetwork();
-    const chainId = network.chainId;
-
-    if (chainId === 11155111) {
-        networkName.textContent = 'Sepolia';
-        networkDot.className = 'dot ok';
-    } else if (chainId === 1) {
-        networkName.textContent = 'Mainnet — switch!';
-        networkDot.className = 'dot warn';
-    } else {
-        networkName.textContent = 'Unknown network';
-        networkDot.className = 'dot warn';
-    }
-}
-
-// ─── LOAD WALLET INFO ─────────────────────────────────────
-async function loadWalletInfo() {
-    const address = await signer.getAddress();
-    const balance = await provider.getBalance(address);
-    const balanceInEth = ethers.utils.formatEther(balance);
-    userAddress.textContent = shortenAddress(address);
-    userAddress.title = address;
-    userBalance.textContent = parseFloat(balanceInEth).toFixed(4) + ' ETH';
-}
-
-// ─── LOAD CONTRACT INFO ───────────────────────────────────
-async function loadContractInfo() {
-
-    // Get contract balance
-    const balance = await contract.getBalance();
-    const balanceInEth = ethers.utils.formatEther(balance);
-    contractBalance.textContent =
-    parseFloat(balanceInEth).toFixed(4);
-
-    // Get total tips count
-    const total = await contract.getTotalTips();
-    totalTipsEl.textContent = total.toString();
-
-    // CALCULATE TOTAL ETH EVER TIPPED
-    // This adds up ALL tip amounts from ALL tips
-    // Even withdrawn ones — shows total ever sent!
-    const allTips = await contract.getAllTips();
-    let totalEth = ethers.BigNumber.from(0);
-    allTips.forEach(tip => {
-        totalEth = totalEth.add(tip.amount);
-    });
-    totalEthTipped.textContent =
-    parseFloat(ethers.utils.formatEther(totalEth)).toFixed(4);
-}
-
-// ─── LOAD ALL TIPS ────────────────────────────────────────
-async function loadAllTips() {
-
-    try {
-        const allTips = await contract.getAllTips();
-
-        feedCount.textContent = allTips.length
-            ? allTips.length + (allTips.length === 1 ? ' entry' : ' entries')
-            : '';
-
-        if (allTips.length === 0) {
-            tipsList.innerHTML =
-            '<p class="no-tips">No tips yet — be the first 🎉</p>';
-            return;
+    if (role === 'manager') {
+      try {
+        const owner = await contract.getOwner();
+        if (currentAddress.toLowerCase() !== owner.toLowerCase()) {
+          throw new Error('This wallet is not the contract owner.');
         }
-
-        // Show newest tips first
-        tipsList.innerHTML = [...allTips].reverse().map(tip => `
-            <div class="tip-row">
-                <div class="tip-amount">${parseFloat(
-                    ethers.utils.formatEther(tip.amount)
-                ).toFixed(4)} ETH</div>
-                <div class="tip-body">
-                    <p class="tip-message">“${tip.message}”</p>
-                    <p class="tip-from">${shortenAddress(tip.tipper)}</p>
-                </div>
-                <div class="tip-time">${new Date(
-                    tip.timestamp * 1000
-                ).toLocaleString()}</div>
-            </div>
-        `).join('');
-
-    } catch (error) {
-        tipsList.innerHTML =
-        '<p class="no-tips">❌ Could not load tips: ' +
-        error.message + '</p>';
-    }
-}
-
-// ─── SEND TIP ─────────────────────────────────────────────
-sendTipBtn.addEventListener('click', async () => {
-
-    const message = tipMessage.value;
-    const amount = tipAmount.value;
-
-    if (!message || !amount) {
-        tipStatus.textContent =
-        '❌ Please fill in message and amount!';
-        tipStatus.className = 'form-status error';
-        return;
+      } catch (ownerError) {
+        const fallbackOwner = await provider.getSigner().getAddress();
+        if (fallbackOwner.toLowerCase() !== currentAddress.toLowerCase()) {
+          throw new Error('Manager access is unavailable for this contract ABI.');
+        }
+      }
     }
 
-    try {
-        tipStatus.textContent =
-        '⏳ Sending tip to blockchain...';
-        tipStatus.className = 'form-status';
-
-        // Call sendTip on smart contract
-        const tx = await contract.sendTip(message, {
-            value: ethers.utils.parseEther(amount)
-        });
-
-        tipStatus.textContent =
-        '⏳ Waiting for validators to confirm...';
-
-        await tx.wait();
-
-        tipStatus.textContent =
-        '✅ Tip sent and stored on blockchain forever! 🎉';
-        tipStatus.className = 'form-status success';
-
-        await loadWalletInfo();
-        await loadContractInfo();
-        await loadAllTips();
-
-        tipMessage.value = '';
-        tipAmount.value = '';
-
-    } catch (error) {
-        tipStatus.textContent = '❌ Failed: ' + error.message;
-        tipStatus.className = 'form-status error';
-    }
-});
-
-// ─── WITHDRAW ─────────────────────────────────────────────
-withdrawBtn.addEventListener('click', async () => {
-
-    try {
-        withdrawStatus.textContent = '⏳ Withdrawing...';
-        withdrawStatus.className = 'form-status';
-
-        const tx = await contract.withdraw();
-        await tx.wait();
-
-        withdrawStatus.textContent =
-        '✅ All tips withdrawn successfully! 💰';
-        withdrawStatus.className = 'form-status success';
-
-        await loadWalletInfo();
-        await loadContractInfo();
-
-    } catch (error) {
-        withdrawStatus.textContent =
-        '❌ Failed: ' + error.message;
-        withdrawStatus.className = 'form-status error';
-    }
-});
-
-// ─── COPY ADDRESS ─────────────────────────────────────────
-copyBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(currentAddress || '');
-    const original = copyBtn.innerHTML;
-    copyBtn.innerHTML = '✅';
-    setTimeout(() => {
-        copyBtn.innerHTML = original;
-    }, 1500);
-});
-
-// ─── DISCONNECT ───────────────────────────────────────────
-disconnectBtn.addEventListener('click', async () => {
-
-    if (contract) contract.removeAllListeners();
-
-    // Try to revoke the permission grant too (supported on newer MetaMask).
-    // If it's not supported, wallet_requestPermissions on next Connect
-    // still forces a fresh approval popup, so this is a nice-to-have.
-    try {
-        await window.ethereum?.request({
-            method: 'wallet_revokePermissions',
-            params: [{ eth_accounts: {} }]
-        });
-    } catch (revokeError) {
-        // Not supported by this wallet — that's fine.
-        console.warn('wallet_revokePermissions failed/unsupported:', revokeError);
-    }
-
+    await detectNetwork();
+    await syncWalletInfo();
+    showApp();
+    await refreshDashboard();
+  } catch (error) {
+    setMessage(loginStatus, `Connection failed: ${error.message}`, 'error');
     provider = null;
     signer = null;
     contract = null;
     currentAddress = null;
+    currentRole = null;
+  }
+}
 
-    userAddress.textContent = '0x0000…0000';
-    userBalance.textContent = '—';
-    contractBalance.textContent = '—';
-    totalTipsEl.textContent = '—';
-    totalEthTipped.textContent = '—';
-    feedCount.textContent = '';
-    tipsList.innerHTML = '<p class="no-tips">No tips yet 🎉</p>';
-    networkName.textContent = '—';
-    networkDot.className = 'dot';
-    tipStatus.textContent = '';
-    withdrawStatus.textContent = '';
-    loginStatus.textContent = '';
-    appScreen.classList.remove('role-customer', 'role-waiter');
+async function detectNetwork() {
+  const network = await provider.getNetwork();
+  const chainId = network.chainId;
 
-    appScreen.classList.add('hidden');
-    loginScreen.classList.remove('hidden');
+  if (chainId === 11155111) {
+    networkName.textContent = 'Sepolia';
+    networkDot.className = 'dot ok';
+  } else if (chainId === 1) {
+    networkName.textContent = 'Mainnet';
+    networkDot.className = 'dot warn';
+  } else {
+    networkName.textContent = 'Unknown';
+    networkDot.className = 'dot warn';
+  }
+}
+
+async function syncWalletInfo() {
+  const address = await signer.getAddress();
+  const balance = await provider.getBalance(address);
+  userAddress.textContent = shortenAddress(address);
+  userAddress.title = address;
+  document.getElementById('userBalance').textContent = `${formatEth(balance)} ETH`;
+}
+
+async function refreshDashboard() {
+  if (!contract || !currentAddress) return;
+
+  await detectNetwork();
+  await syncWalletInfo();
+
+  if (currentRole === 'customer') {
+    showView('customer');
+    await renderCustomerView();
+  } else if (currentRole === 'waiter') {
+    showView('waiter');
+    await renderWaiterView();
+  } else if (currentRole === 'manager') {
+    showView('manager');
+    await renderManagerView();
+  }
+}
+
+async function renderCustomerView() {
+  try {
+    const [addresses, names] = await contract.getWaiters();
+    if (!addresses.length) {
+      waiterList.innerHTML = '<div class="list-row">No waiters are registered yet.</div>';
+      return;
+    }
+
+    waiterList.innerHTML = addresses.map((address, index) => {
+      const isActive = selectedWaiterAddress && selectedWaiterAddress.toLowerCase() === address.toLowerCase();
+      const displayName = names[index] || 'Unnamed waiter';
+      return `
+        <div class="waiter-item ${isActive ? 'active' : ''}">
+          <div>
+            <strong>${displayName}</strong><br />
+            <small>${shortenAddress(address)}</small>
+          </div>
+          <button type="button" data-address="${address}">Select</button>
+        </div>
+      `;
+    }).join('');
+  } catch (error) {
+    waiterList.innerHTML = `<div class="list-row">${error.message}</div>`;
+  }
+}
+
+async function renderWaiterView() {
+  try {
+    const waiterInfo = await contract.getWaiter(currentAddress);
+    waiterName.textContent = waiterInfo.name || 'Waiter';
+    waiterBalance.textContent = `${formatEth(waiterInfo.balance)} ETH`;
+
+    const tips = await contract.getTipsForWaiter(currentAddress);
+    if (!tips.length) {
+      waiterTipsList.innerHTML = '<div class="list-row">No tips yet.</div>';
+      return;
+    }
+
+    waiterTipsList.innerHTML = tips.slice().reverse().map((tip) => `
+      <div class="list-row">
+        <div>
+          <strong>${tip.message || 'No message'}</strong><br />
+          <small>${shortenAddress(tip.tipper)} • ${formatEth(tip.amount)} ETH</small>
+        </div>
+        <span class="microcopy">${new Date(tip.timestamp * 1000).toLocaleString()}</span>
+      </div>
+    `).join('');
+  } catch (error) {
+    waiterTipsList.innerHTML = `<div class="list-row">${error.message}</div>`;
+  }
+}
+
+async function renderManagerView() {
+  try {
+    const totalTips = await contract.totalTipsReceived();
+    const totalWithdrawn = await contract.totalWithdrawn();
+    const balance = await contract.getContractBalance();
+    const [addresses, names, active] = await contract.getWaiters();
+
+    managerTotalTips.textContent = `${formatEth(totalTips)} ETH`;
+    managerTotalWithdrawn.textContent = `${formatEth(totalWithdrawn)} ETH`;
+    managerContractBalance.textContent = `${formatEth(balance)} ETH`;
+
+    if (!addresses.length) {
+      managerWaiterList.innerHTML = '<div class="list-row">No waiters registered.</div>';
+      return;
+    }
+
+    managerWaiterList.innerHTML = addresses.map((address, index) => `
+      <div class="list-row">
+        <div>
+          <strong>${names[index] || 'Unnamed waiter'}</strong><br />
+          <small>${shortenAddress(address)} • ${active[index] ? 'Active' : 'Removed'}</small>
+        </div>
+        <button type="button" data-remove="${address}">Remove</button>
+      </div>
+    `).join('');
+  } catch (error) {
+    managerWaiterList.innerHTML = `<div class="list-row">${error.message}</div>`;
+  }
+}
+
+connectCustomerBtn.addEventListener('click', () => connectWallet('customer'));
+connectWaiterBtn.addEventListener('click', () => connectWallet('waiter'));
+connectManagerBtn.addEventListener('click', () => connectWallet('manager'));
+
+sendTipBtn.addEventListener('click', async () => {
+  if (!selectedWaiterAddress) {
+    setMessage(customerStatus, 'Please select a waiter first.', 'error');
+    return;
+  }
+
+  const amount = customerTipAmount.value;
+  const message = customerTipMessage.value;
+  if (!amount || !message) {
+    setMessage(customerStatus, 'Please enter an amount and a message.', 'error');
+    return;
+  }
+
+  try {
+    setMessage(customerStatus, 'Submitting tip…');
+    const tx = await contract.sendTip(selectedWaiterAddress, message, { value: ethers.utils.parseEther(amount) });
+    await tx.wait();
+    setMessage(customerStatus, 'Tip sent successfully!', 'success');
+    customerTipAmount.value = '';
+    customerTipMessage.value = '';
+    await refreshDashboard();
+  } catch (error) {
+    setMessage(customerStatus, getFriendlyErrorMessage(error, 'The tip transaction was rejected by the contract.'), 'error');
+  }
 });
 
-// ─── AUTO DETECT CHANGES ──────────────────────────────────
-window.ethereum?.on('accountsChanged', async (accounts) => {
-    if (accounts.length === 0) {
-        disconnectBtn.click();
-    } else {
-        provider =
-        new ethers.providers.Web3Provider(window.ethereum);
-        signer = provider.getSigner();
-        contract = new ethers.Contract(
-            CONTRACT_ADDRESS,
-            CONTRACT_ABI,
-            signer
-        );
-        currentAddress = await signer.getAddress();
-        await loadWalletInfo();
-        await loadContractInfo();
-        await detectNetwork();
+withdrawBtn.addEventListener('click', async () => {
+  try {
+    setMessage(withdrawStatus, 'Withdrawing…');
+    const tx = await contract.withdraw();
+    await tx.wait();
+    setMessage(withdrawStatus, 'Withdrawal complete.', 'success');
+    await refreshDashboard();
+  } catch (error) {
+    setMessage(withdrawStatus, getFriendlyErrorMessage(error, 'The withdrawal was rejected by the contract.'), 'error');
+  }
+});
+
+registerWaiterBtn.addEventListener('click', async () => {
+  try {
+    const address = managerWaiterAddress.value.trim();
+    const name = managerWaiterName.value.trim();
+    if (!address || !name) {
+      setMessage(managerStatus, 'Enter both a wallet address and a name.', 'error');
+      return;
     }
+
+    setMessage(managerStatus, 'Registering waiter…');
+    const tx = await contract.registerWaiter(address, name);
+    await tx.wait();
+    setMessage(managerStatus, 'Waiter registered!', 'success');
+    managerWaiterAddress.value = '';
+    managerWaiterName.value = '';
+    await refreshDashboard();
+  } catch (error) {
+    setMessage(managerStatus, getFriendlyErrorMessage(error, 'The registration was rejected by the contract.'), 'error');
+  }
+});
+
+waiterList.addEventListener('click', (event) => {
+  const button = event.target.closest('button[data-address]');
+  if (!button) return;
+  selectedWaiterAddress = button.getAttribute('data-address');
+  renderCustomerView();
+});
+
+managerWaiterList.addEventListener('click', async (event) => {
+  const button = event.target.closest('button[data-remove]');
+  if (!button) return;
+  const address = button.getAttribute('data-remove');
+  try {
+    setMessage(managerStatus, 'Removing waiter…');
+    const tx = await contract.removeWaiter(address);
+    await tx.wait();
+    setMessage(managerStatus, 'Waiter removed.', 'success');
+    await refreshDashboard();
+  } catch (error) {
+    setMessage(managerStatus, getFriendlyErrorMessage(error, 'The removal was rejected by the contract.'), 'error');
+  }
+});
+
+copyBtn.addEventListener('click', async () => {
+  if (!currentAddress) return;
+  await navigator.clipboard.writeText(currentAddress);
+  const original = copyBtn.textContent;
+  copyBtn.textContent = '✓';
+  setTimeout(() => {
+    copyBtn.textContent = original;
+  }, 1200);
+});
+
+backToHomeBtn.addEventListener('click', () => {
+  showLanding();
+  setMessage(loginStatus, '', '');
+});
+
+disconnectBtn.addEventListener('click', async () => {
+  if (contract) {
+    try {
+      await window.ethereum?.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] });
+    } catch (error) {
+      console.warn(error);
+    }
+  }
+
+  provider = null;
+  signer = null;
+  contract = null;
+  currentAddress = null;
+  currentRole = null;
+  selectedWaiterAddress = null;
+  userAddress.textContent = '0x0000…0000';
+  document.getElementById('userBalance').textContent = '—';
+  networkName.textContent = '—';
+  networkDot.className = 'dot';
+  setMessage(loginStatus, '', '');
+  showLanding();
+});
+
+window.ethereum?.on('accountsChanged', async () => {
+  if (!window.ethereum) return;
+  const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+  if (!accounts.length) {
+    disconnectBtn.click();
+    return;
+  }
+  await refreshDashboard();
 });
 
 window.ethereum?.on('chainChanged', async () => {
-    provider =
-    new ethers.providers.Web3Provider(window.ethereum);
-    signer = provider.getSigner();
-    contract = new ethers.Contract(
-        CONTRACT_ADDRESS,
-        CONTRACT_ABI,
-        signer
-    );
-    await detectNetwork();
-    await loadWalletInfo();
-    await loadContractInfo();
+  if (contract) await refreshDashboard();
 });

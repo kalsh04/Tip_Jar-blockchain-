@@ -1,151 +1,168 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tip Jar</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TipJar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div id="landingScreen" class="landing-screen">
+    <div class="landing-glow"></div>
+    <div class="landing-card">
+      <p class="eyebrow">Restaurant tipping onchain</p>
+      <h1>TipJar</h1>
+      <p class="landing-copy">Connect your wallet and choose the experience that fits your role in the restaurant.</p>
 
-<!-- ═══════════════════════ LOGIN SCREEN ═══════════════════════ -->
-<div id="loginScreen" class="login-screen">
-  <div class="login-glow"></div>
-
-  <div class="login-card">
-    <svg class="jar-mark" width="72" height="84" viewBox="0 0 72 84" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <ellipse cx="36" cy="27" rx="15" ry="6" class="coin coin-1"/>
-      <ellipse cx="36" cy="19" rx="15" ry="6" class="coin coin-2"/>
-      <ellipse cx="36" cy="11" rx="12" ry="5" class="coin coin-3"/>
-      <path d="M10 30 h52 l-5 46 a6 6 0 0 1-6 5.5 H21 a6 6 0 0 1-6-5.5 L10 30 Z" class="jar-body"/>
-      <path d="M10 30 h52" class="jar-rim"/>
-    </svg>
-
-    <p class="login-eyebrow">On&#8209;chain tipping</p>
-    <h1 class="login-title">Tip Jar</h1>
-    <p class="login-sub">Every tip and every message lives on the blockchain, permanently. Choose how you're using the jar today.</p>
-
-    <div class="role-choice">
-      <button id="connectCustomerBtn" class="btn btn-role">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span>
-          <strong>I'm a customer</strong>
-          <em>Send a tip with a message</em>
-        </span>
-      </button>
-      <button id="connectWaiterBtn" class="btn btn-role">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 7h18M3 12h18M3 17h18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        <span>
-          <strong>I'm the waiter</strong>
-          <em>View balance & withdraw tips</em>
-        </span>
-      </button>
-    </div>
-    <p id="loginStatus" class="login-status"></p>
-  </div>
-
-  <p class="login-footnote">You'll be asked to approve the connection in MetaMask.</p>
-</div>
-
-<!-- ═══════════════════════ APP SCREEN ═══════════════════════ -->
-<div id="appScreen" class="app-screen hidden">
-
-  <header class="topbar">
-    <div class="brand">
-      <svg width="22" height="26" viewBox="0 0 72 84" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <ellipse cx="36" cy="27" rx="15" ry="6" class="coin coin-1"/>
-        <ellipse cx="36" cy="19" rx="15" ry="6" class="coin coin-2"/>
-        <path d="M10 30 h52 l-5 46 a6 6 0 0 1-6 5.5 H21 a6 6 0 0 1-6-5.5 L10 30 Z" class="jar-body"/>
-      </svg>
-      <span>Tip Jar</span>
-    </div>
-
-    <div class="topbar-right">
-      <div class="pill" id="networkPill">
-        <span class="dot" id="networkDot"></span>
-        <span id="networkName">—</span>
-      </div>
-      <div class="pill pill-wallet" id="walletPill" title="Click to copy">
-        <span id="userAddress">0x0000…0000</span>
-        <button id="copyBtn" class="copy-btn" aria-label="Copy address">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M5 15V5a2 2 0 0 1 2-2h10" stroke="currentColor" stroke-width="1.8"/></svg>
+      <div class="role-grid">
+        <button id="connectCustomerBtn" class="role-card customer">
+          <span class="role-icon">🧑</span>
+          <span>
+            <strong>Customer</strong>
+            <small>Select a waiter and send a tip</small>
+          </span>
+        </button>
+        <button id="connectWaiterBtn" class="role-card waiter">
+          <span class="role-icon">👨‍🍳</span>
+          <span>
+            <strong>Waiter</strong>
+            <small>Track your balance and withdraw</small>
+          </span>
+        </button>
+        <button id="connectManagerBtn" class="role-card manager">
+          <span class="role-icon">👑</span>
+          <span>
+            <strong>Manager</strong>
+            <small>Register waiters and monitor tips</small>
+          </span>
         </button>
       </div>
-      <button id="disconnectBtn" class="icon-btn" title="Disconnect">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M9 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
+
+      <p id="loginStatus" class="login-status"></p>
+      <p class="landing-footnote">You will be prompted by MetaMask to approve the connection.</p>
     </div>
-  </header>
+  </div>
 
-  <main class="bento">
-
-    <!-- SEND TIP — big primary card -->
-    <section class="card card-send">
-      <div class="card-kicker">Make a tip</div>
-      <h2 class="card-title">Send ETH, leave a message</h2>
-      <p class="card-hint">Your note gets written into the contract forever — no edits, no deletes.</p>
-
-      <label class="field-label" for="tipMessage">Message</label>
-      <input type="text" id="tipMessage" placeholder="Say something nice…" maxlength="140"/>
-
-      <label class="field-label" for="tipAmount">Amount (ETH)</label>
-      <input type="text" id="tipAmount" placeholder="0.001" inputmode="decimal"/>
-
-      <button id="sendTipBtn" class="btn btn-primary btn-send">Send Tip</button>
-      <p id="tipStatus" class="form-status"></p>
-
-      <div class="wallet-balance-row">
-        <span>Your balance</span>
-        <span id="userBalance" class="mono">—</span>
+  <div id="appScreen" class="app-screen hidden">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">🍽</span>
+        <span>TipJar v2</span>
       </div>
-    </section>
 
-    <!-- RIGHT COLUMN -->
-    <aside class="side-col">
-
-      <div class="stat-strip">
-        <div class="stat">
-          <div class="stat-value mono" id="contractBalance">—</div>
-          <div class="stat-label">In the jar (ETH)</div>
+      <div class="topbar-right">
+        <div class="pill" id="networkPill">
+          <span class="dot" id="networkDot"></span>
+          <span id="networkName">—</span>
         </div>
-        <div class="stat">
-          <div class="stat-value mono" id="totalTips">—</div>
-          <div class="stat-label">Tips sent</div>
+        <div class="pill pill-wallet" title="Copy address">
+          <span id="userAddress">0x0000…0000</span>
+          <button id="copyBtn" class="copy-btn" aria-label="Copy address">⧉</button>
         </div>
-        <div class="stat">
-          <div class="stat-value mono" id="totalEthTipped">—</div>
-          <div class="stat-label">Ever tipped (ETH)</div>
+        <div class="pill">
+          <span id="userBalance">—</span>
         </div>
+        <button id="backToHomeBtn" class="icon-btn">↺</button>
+        <button id="disconnectBtn" class="icon-btn" title="Disconnect">⎋</button>
       </div>
+    </header>
 
-      <div id="ownerCard" class="card card-owner">
-        <div class="owner-badge">Owner</div>
-        <h3 class="owner-title">This jar is yours</h3>
-        <p class="card-hint">Withdraw everything that's been tipped so far.</p>
-        <button id="withdrawBtn" class="btn btn-owner">Withdraw All Tips</button>
-        <p id="withdrawStatus" class="form-status"></p>
-      </div>
+    <main class="main-shell">
+      <section id="customerView" class="view-panel">
+        <div class="panel-card hero-card">
+          <div class="panel-kicker">Customer</div>
+          <h2>Choose a waiter</h2>
+          <p class="panel-copy">Pick the person who served you and tip them directly with a short message.</p>
 
-    </aside>
+          <div id="waiterList" class="waiter-list"></div>
+        </div>
 
-    <!-- TIPS FEED — full width ledger -->
-    <section class="card card-feed">
-      <div class="feed-head">
-        <h2 class="card-title">On&#8209;chain ledger</h2>
-        <span class="feed-count" id="feedCount"></span>
-      </div>
-      <div id="tipsList" class="tips-list">
-        <p class="no-tips">No tips yet — be the first 🎉</p>
-      </div>
-    </section>
+        <div class="panel-card">
+          <label class="field-label" for="customerTipAmount">Tip amount (ETH)</label>
+          <input id="customerTipAmount" type="text" placeholder="0.02" inputmode="decimal" />
 
-  </main>
-</div>
+          <label class="field-label" for="customerTipMessage">Thank-you message</label>
+          <input id="customerTipMessage" type="text" placeholder="Great service today!" maxlength="140" />
 
-<script src="ethers.js"></script>
-<script src="app.js"></script>
+          <button id="sendTipBtn" class="btn btn-primary btn-wide">Send Tip</button>
+          <p id="customerStatus" class="form-status"></p>
+        </div>
+      </section>
+
+      <section id="waiterView" class="view-panel hidden">
+        <div class="panel-card hero-card">
+          <div class="panel-kicker">Waiter</div>
+          <h2 id="waiterName">Welcome</h2>
+          <div class="balance-card">
+            <span>Available balance</span>
+            <strong id="waiterBalance">0 ETH</strong>
+          </div>
+          <button id="withdrawBtn" class="btn btn-primary btn-wide">Withdraw</button>
+          <p id="withdrawStatus" class="form-status"></p>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-head">
+            <h3>Recent tips</h3>
+            <span class="microcopy">From the blockchain</span>
+          </div>
+          <div id="waiterTipsList" class="list-stack"></div>
+        </div>
+      </section>
+
+      <section id="managerView" class="view-panel hidden">
+        <div class="panel-card hero-card">
+          <div class="panel-kicker">Manager</div>
+          <h2>Operations dashboard</h2>
+          <p class="panel-copy">Manage registered waiters and monitor the restaurant’s tip flow.</p>
+
+          <div class="stats-grid">
+            <div class="stat-card">
+              <span>Total tips</span>
+              <strong id="managerTotalTips">0 ETH</strong>
+            </div>
+            <div class="stat-card">
+              <span>Total withdrawn</span>
+              <strong id="managerTotalWithdrawn">0 ETH</strong>
+            </div>
+            <div class="stat-card">
+              <span>Contract balance</span>
+              <strong id="managerContractBalance">0 ETH</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-head">
+            <h3>Register waiter</h3>
+            <span id="managerOwnerBadge" class="microcopy">Owner</span>
+          </div>
+
+          <label class="field-label" for="managerWaiterAddress">Wallet address</label>
+          <input id="managerWaiterAddress" type="text" placeholder="0x1234..." />
+
+          <label class="field-label" for="managerWaiterName">Display name</label>
+          <input id="managerWaiterName" type="text" placeholder="John" />
+
+          <button id="registerWaiterBtn" class="btn btn-primary btn-wide">Register Waiter</button>
+          <p id="managerStatus" class="form-status"></p>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-head">
+            <h3>Registered waiters</h3>
+            <span class="microcopy">Manage access</span>
+          </div>
+          <div id="managerWaiterList" class="list-stack"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="ethers.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
